@@ -2,32 +2,41 @@ const express = require ("express");
 const {connectToMongoDB} =require("./connect");
 const urlRoute = require('./routes/url');
 const URL = require('./models/url');
+require('dotenv').config();
 
 const app = express();
-const PORT = 8001;
+const PORT = process.env.PORT ;
 
-connectToMongoDB("mongodb://localhost:27017/short-url")
-.then(()=>console.log("Mongodb connected"))
+const databaseUrl = process.env.MONGODB_URI ;
+connectToMongoDB(databaseUrl)
+    .then(() => console.log("Mongodb connected"))
+    .catch((error) => console.error("Failed to connect to MongoDB", error));
+
 
 app.use(express.json());
 app.use("/url" , urlRoute);
-app.get('/shortId' , async(req,res) =>{
-  const shortId = req.params.shortId;
+app.get('/:shortId', async (req, res) => {
+  const { shortId } = req.params;
   const entry = await URL.findOneAndUpdate(
+    { shortId },
     {
-   shortId
-  },
-  
-  {$push:
-    {
-    visitHistory:{
-     timestamp:Date.now(),
+      $inc: { visitCount: 1 },
+      $push: {
+        visitHistory: {
+          timestamp: Date.now(),
+        },
+      },
     },
-  },
-}
-);
- res.redirect(entry.redirectURL);
+    { new: true }
+  );
+
+  if (entry) {
+    res.redirect(entry.redirectURL);
+  } else {
+    res.status(404).send('URL not found');
+  }
 });
+
 
 app.listen(PORT,()=> console.log(`Server Started at PORT:${PORT}`));
 app.get('/',(req,res)=>{
